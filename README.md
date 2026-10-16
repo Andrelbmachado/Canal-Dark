@@ -12,7 +12,7 @@ Pipeline local e 100% gratuito que encontra notícias e clipes, monta Shorts/Ree
 | O quê | Para quê | Como instalar |
 |---|---|---|
 | Python 3.11+ | o programa | python.org ou `brew install python` |
-| FFmpeg (com libass) | edição dos vídeos | `brew install ffmpeg` · `sudo apt install ffmpeg` |
+| FFmpeg (com drawtext e libass) | edição dos vídeos | `brew install ffmpeg-full` (o `ffmpeg` comum do Homebrew vem sem drawtext/libass) · `sudo apt install ffmpeg` |
 | Claude Code logado | manchetes, roteiros, triagem e chat | `npm install -g @anthropic-ai/claude-code` e rode `claude` uma vez |
 | Ollama (opcional) | reserva quando o Claude Code está no limite | ollama.com, depois `ollama pull qwen2.5:7b` |
 | cloudflared (opcional) | só se preferir enviar ao Instagram por link público | `brew install cloudflared` |

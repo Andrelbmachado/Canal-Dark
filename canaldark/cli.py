@@ -56,7 +56,7 @@ async def _run(args) -> None:
 
     os.chdir(Path(args.raiz).expanduser())
     if shutil.which("ffmpeg") is None:
-        raise SystemExit("FFmpeg não encontrado. Instale com `brew install ffmpeg` ou `sudo apt install ffmpeg`.")
+        raise SystemExit("FFmpeg não encontrado. Instale com `brew install ffmpeg-full` ou `sudo apt install ffmpeg`.")
     try:
         cfgs = load_channels(Path("canais"))
     except ValueError as e:
