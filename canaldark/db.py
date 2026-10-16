@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS publicacoes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   video_id INTEGER NOT NULL REFERENCES videos(id),
   plataforma TEXT NOT NULL,
+  conta TEXT,
   id_externo TEXT,
   url TEXT,
   agendado_para TEXT,
@@ -154,9 +155,13 @@ async def transition(db: aiosqlite.Connection, video_id: int, to: State, *, erro
 
 
 async def claim(db: aiosqlite.Connection, from_state: State, to_state: State,
-                channel: str | None = None, channels: list[str] | None = None) -> VideoRow | None:
+                channel: str | None = None, channels: list[str] | None = None,
+                video_id: int | None = None) -> VideoRow | None:
     where = "estado = ?"
     params: list = [from_state.value]
+    if video_id is not None:
+        where += " AND id = ?"
+        params.append(video_id)
     if channel is not None:
         where += " AND canal = ?"
         params.append(channel)
