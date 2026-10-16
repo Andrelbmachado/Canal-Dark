@@ -109,3 +109,32 @@ class Sound(BaseModel):
     arquivo: str
     quando_usar: str
     momento: Literal["inicio", "final", "antes_revelacao"]
+
+
+# ---- Pacote gerado pelo cérebro --------------------------------------------
+
+
+class DialogLine(BaseModel):
+    personagem: str
+    fala: str
+
+
+class Cut(BaseModel):
+    inicio: float = 0
+    fim: float | None = None
+
+
+class Package(BaseModel):
+    formato: FormatName
+    manchete: list[str]
+    roteiro: str | None = None
+    dialogo: list[DialogLine] | None = None
+    fonte: str
+    som: str | None = None
+    corte: Cut | None = None
+    titulo_post: str
+    descricao_post: str
+    hashtags: list[str] = Field(default_factory=list)
+    risco: Literal["ok", "revisar"] = "ok"
+    motivo_risco: str | None = None
+    sintetico_realista: bool = False
