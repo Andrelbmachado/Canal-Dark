@@ -42,12 +42,50 @@ def _auth(args) -> None:
         print(f"Instagram conectado: @{authorize(args.conta, token, args.ig_user_id)}")
 
 
+async def _run(args) -> None:
+    import os
+    import shutil
+
+    import uvicorn
+
+    from canaldark.config import load_channels, load_sounds
+    from canaldark.db import open_db
+    from canaldark.events import EventBus
+    from canaldark.pipeline import Pipeline
+    from canaldark.web.app import create_app
+
+    os.chdir(Path(args.raiz).expanduser())
+    if shutil.which("ffmpeg") is None:
+        raise SystemExit("FFmpeg não encontrado. Instale com `brew install ffmpeg` ou `sudo apt install ffmpeg`.")
+    try:
+        cfgs = load_channels(Path("canais"))
+    except ValueError as e:
+        raise SystemExit(str(e))
+    if not cfgs:
+        raise SystemExit("nenhum canal em canais/*.yaml")
+    Path("dados").mkdir(exist_ok=True)
+    db = await open_db(Path("dados/canaldark.db"))
+    bus = EventBus(db)
+    pipeline = Pipeline(db, bus, cfgs, load_sounds(Path("sons/catalogo.yaml")), root=Path("."), dry_run=args.ensaio)
+    server = uvicorn.Server(uvicorn.Config(create_app(pipeline), host="127.0.0.1", port=args.porta,
+                                           log_level="warning"))
+    await pipeline.start()
+    print(f"Canal Dark rodando: abra http://localhost:{args.porta}" + (" (ensaio)" if args.ensaio else ""))
+    try:
+        await server.serve()
+    finally:
+        await pipeline.stop()
+        await db.close()
+
+
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     if args.cmd == "auth":
         _auth(args)
     elif args.cmd == "run":
-        raise SystemExit("ainda não implementado")
+        import asyncio
+
+        asyncio.run(_run(args))
 
 
 if __name__ == "__main__":

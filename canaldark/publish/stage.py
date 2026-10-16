@@ -160,10 +160,12 @@ async def publish_video(db, bus, cfg: ChannelConfig, row: VideoRow, get_uploader
 
 
 async def publish_worker(db, bus, cfgs: dict[str, ChannelConfig], get_uploader: GetUploader,
-                         paused: set | None = None, stop: asyncio.Event | None = None) -> None:
+                         paused: set | None = None, stop: asyncio.Event | None = None,
+                         active: Callable[[], list[str]] | None = None) -> None:
     paused = paused if paused is not None else set()
     while stop is None or not stop.is_set():
-        row = await claim_due(db, cfgs, datetime.now(SP), paused=paused)
+        chosen = {c: cfgs[c] for c in active()} if active else cfgs
+        row = await claim_due(db, chosen, datetime.now(SP), paused=paused)
         if row is None:
             await asyncio.sleep(IDLE_SLEEP)
             continue

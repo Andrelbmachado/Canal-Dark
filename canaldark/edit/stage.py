@@ -1,5 +1,6 @@
 """Edit stage: transcribe → package from the brain → rules check → voice → 9:16 render."""
 import asyncio
+from collections.abc import Callable
 import json
 from pathlib import Path
 
@@ -180,9 +181,10 @@ async def edit_video(db, bus, cfgs: dict[str, ChannelConfig], sounds: list[Sound
 
 
 async def edit_worker(db, bus, cfgs: dict[str, ChannelConfig], sounds: list[Sound],
-                      work_dir: Path = WORK_DIR, stop: asyncio.Event | None = None) -> None:
+                      work_dir: Path = WORK_DIR, stop: asyncio.Event | None = None,
+                      active: Callable[[], list[str]] | None = None) -> None:
     while stop is None or not stop.is_set():
-        row = await claim(db, State.baixado, State.editando, channels=list(cfgs))
+        row = await claim(db, State.baixado, State.editando, channels=active() if active else list(cfgs))
         if row is None:
             await asyncio.sleep(IDLE_SLEEP)
             continue

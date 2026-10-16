@@ -1,5 +1,6 @@
 """Capture stage: read sources, triage with the brain, insert the best items, download videos."""
 import asyncio
+from collections.abc import Callable
 from datetime import datetime, time as dtime, timezone
 from pathlib import Path
 
@@ -68,9 +69,10 @@ async def capture_cycle(db, bus, cfg: ChannelConfig) -> int:
 
 
 async def download_worker(db, bus, cfgs: dict[str, ChannelConfig], out_dir: Path = DOWNLOAD_DIR,
-                          stop: asyncio.Event | None = None) -> None:
+                          stop: asyncio.Event | None = None,
+                          active: Callable[[], list[str]] | None = None) -> None:
     while stop is None or not stop.is_set():
-        row = await claim(db, State.descoberto, State.baixando, channels=list(cfgs))
+        row = await claim(db, State.descoberto, State.baixando, channels=active() if active else list(cfgs))
         if row is None:
             await asyncio.sleep(IDLE_SLEEP)
             continue
