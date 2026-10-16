@@ -28,6 +28,10 @@ pip install -e ".[ml]"      # [ml] traz a voz Kokoro e a transcrição (faster-w
 
 Sem o `[ml]` o painel roda, mas a etapa de edição para com a mensagem "voz Kokoro não instalada".
 
+Problemas comuns no macOS:
+- Use **Python 3.12** para o `[ml]` (com 3.13/3.14 a voz Kokoro não compila). Com o uv: `uv python install 3.12` e `uv venv --python 3.12 .venv`.
+- Se aparecer `No module named 'canaldark'` com o projeto dentro de Documentos, o macOS ocultou arquivos do venv. Rode `chflags nohidden .venv/lib/python3.12/site-packages/*.pth`.
+
 ## Primeiro uso: ensaio
 
 ```bash

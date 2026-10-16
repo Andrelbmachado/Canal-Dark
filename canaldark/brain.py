@@ -4,12 +4,13 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from email.utils import parsedate_to_datetime
 from typing import TypeVar
 
 import httpx
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
-from .models import ChannelConfig, Package, Sound, SourceItem, TriageResponse, TriageResult
+from .models import ChannelConfig, Package, Sound, SourceItem, TriageResult
 from .rules import prompt_rules
 
 T = TypeVar("T", bound=BaseModel)
@@ -136,14 +137,40 @@ diálogo de 30 a 60 s (formato dialogo) ou nada (meme). Responda SOMENTE com um 
     return await ask_json(prompt, Package)
 
 
+TRIAGE_MAX = 30          # bigger prompts made `claude -p` take 5+ min on a 140-item Google News feed
+TRIAGE_TIMEOUT = 420
+
+
+class _TriageItem(BaseModel):
+    id: int
+    nota: int = Field(ge=0, le=10)
+    grupo: str
+
+
+class _TriageIds(BaseModel):
+    itens: list[_TriageItem]
+
+
+def _newest_first(items: list[SourceItem]) -> list[SourceItem]:
+    def ts(i: SourceItem) -> float:
+        try:
+            return parsedate_to_datetime(i.published).timestamp() if i.published else 0.0
+        except (TypeError, ValueError):
+            return 0.0
+    return sorted(items, key=ts, reverse=True)
+
+
 async def triage(cfg: ChannelConfig, items: list[SourceItem]) -> list[TriageResult]:
     if not items:
         return []
-    listing = "\n".join(f"- url: {i.url}\n  título: {i.title}\n  resumo: {i.summary[:300]}" for i in items)
+    batch = _newest_first(items)[:TRIAGE_MAX]
+    listing = "\n".join(f"- id: {n}\n  título: {i.title}\n  resumo: {i.summary[:200]}"
+                        for n, i in enumerate(batch, 1))
     prompt = f"""Você faz a triagem de pauta do canal "{cfg.nome}" (público brasileiro).
 Para cada item, dê uma nota de 0 a 10 de interesse para um Short hoje e um "grupo" curto que seja igual
 para itens que falam do mesmo fato. Itens fora do tema do canal recebem nota 0.
 {listing}
-Responda SOMENTE com JSON no schema: {_schema_hint(TriageResponse)}"""
-    resp = await ask_json(prompt, TriageResponse)
-    return resp.itens
+Responda SOMENTE com JSON no schema: {_schema_hint(_TriageIds)}"""
+    resp = await ask_json(prompt, _TriageIds, timeout=TRIAGE_TIMEOUT)
+    return [TriageResult(url=batch[r.id - 1].url, nota=r.nota, grupo=r.grupo)
+            for r in resp.itens if 1 <= r.id <= len(batch)]

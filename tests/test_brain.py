@@ -79,3 +79,18 @@ async def test_brain_error_when_both_fail(monkeypatch):
 
 def test_extract_json_handles_fences():
     assert brain.extract_json('blá ```json\n{"a": {"b": 1}}\n``` fim') == {"a": {"b": 1}}
+
+
+async def test_triage_sends_short_ids_and_caps_items(queue):
+    from canaldark.models import ChannelConfig, SourceItem
+    cfg = ChannelConfig(id="gta6", nome="GTA", fontes=[{"tipo": "google_news", "busca": "x"}],
+                        formatos={"noticia": 1.0}, estilo_manchete="a", persona_roteiro="b",
+                        voz={"id": "pm_alex"}, horarios=["09:00"], contas={"youtube": "gta6"})
+    items = [SourceItem(url=f"https://news.google.com/rss/articles/{'X' * 200}{i}", title=f"Notícia {i}",
+                        source_name="s") for i in range(140)]
+    log = queue([claude_ok({"itens": [{"id": 1, "nota": 8, "grupo": "a"}, {"id": 2, "nota": 3, "grupo": "b"},
+                                      {"id": 999, "nota": 9, "grupo": "c"}]})])
+    res = await brain.triage(cfg, items)
+    prompt = json.loads(log.read_text().splitlines()[0])[1]
+    assert "news.google.com" not in prompt and prompt.count("título:") == brain.TRIAGE_MAX
+    assert [(r.url, r.nota) for r in res] == [(items[0].url, 8), (items[1].url, 3)]
