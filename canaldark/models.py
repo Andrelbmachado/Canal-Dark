@@ -138,3 +138,25 @@ class Package(BaseModel):
     risco: Literal["ok", "revisar"] = "ok"
     motivo_risco: str | None = None
     sintetico_realista: bool = False
+
+
+# ---- Captação ---------------------------------------------------------------
+
+
+class SourceItem(BaseModel):
+    url: str
+    title: str
+    summary: str = ""
+    published: str | None = None
+    source_name: str
+    video_url: str | None = None
+
+
+class TriageResult(BaseModel):
+    url: str
+    nota: int = Field(ge=0, le=10)
+    grupo: str
+
+
+class TriageResponse(BaseModel):
+    itens: list[TriageResult]
