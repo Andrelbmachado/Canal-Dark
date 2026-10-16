@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "canaldark"
+version = "0.1.0"
+description = "Pipeline local e gratuito de Shorts/Reels com painel ao vivo"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi", "uvicorn", "aiosqlite", "pydantic>=2", "pyyaml", "feedparser",
+  "httpx", "yt-dlp", "google-api-python-client", "google-auth-oauthlib",
+  "keyring", "mcp",
+]
+
+[project.optional-dependencies]
+ml = ["faster-whisper", "kokoro", "soundfile"]
+dev = ["pytest", "pytest-asyncio", "respx"]
+
+[project.scripts]
+canaldark = "canaldark.cli:main"
+canaldark-mcp = "canaldark.chat.mcp_server:main"
+
+[tool.setuptools.packages.find]
+include = ["canaldark*"]
+
+[tool.setuptools.package-data]
+canaldark = ["web/static/*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
