@@ -62,3 +62,11 @@ def test_sounds_parse(tmp_path):
     p.write_text("- {id: t, arquivo: t.mp3, quando_usar: final triste, momento: final}\n")
     s = load_sounds(p)
     assert s[0].momento == "final"
+
+
+def test_all_bundled_channels_load():
+    cfgs = load_channels(Path(__file__).parents[1] / "canais")
+    assert set(cfgs) == {"gta6", "ia", "politica"}
+    pol = cfgs["politica"]
+    assert pol.regras == "politica" and pol.formatos["meme"] == 0.0 and pol.formatos["noticia"] == 0.85
+    assert {f.tipo for f in cfgs["ia"].fontes} >= {"rss", "google_news"}

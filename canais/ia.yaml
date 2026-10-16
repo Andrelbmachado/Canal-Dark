@@ -1,0 +1,25 @@
+id: ia
+nome: "IA Hoje BR"
+idioma: pt-BR
+intervalo_captacao_min: 30
+nota_minima: 6
+max_por_dia: 5            # notícia diária de IA rende vários posts por história
+fontes:
+  - tipo: rss
+    url: https://tecnoblog.net/feed/
+  - tipo: rss
+    url: https://canaltech.com.br/rss/
+  - tipo: rss
+    url: https://olhardigital.com.br/feed/
+  - tipo: google_news
+    busca: '"inteligência artificial" OR ChatGPT OR Gemini OR Claude OR OpenAI'
+formatos: { noticia: 0.7, meme: 0.1, dialogo: 0.2 }
+estilo_manchete: "curiosa e direta, explica o impacto para quem usa celular e computador, até 60 caracteres"
+persona_roteiro: "explicador de tecnologia brasileiro, didático, sem jargão, uma analogia do dia a dia por vídeo"
+voz: { motor: kokoro, id: pf_dora }
+personagens: [curioso, especialista]
+horarios: ["08:00", "11:30", "14:00", "18:30", "21:30"]
+contas: { youtube: ia, instagram: ia }
+regras_extras:
+  - "nunca prometer que uma IA 'substitui' profissões sem fonte"
+  - "explicar termos técnicos na primeira vez que aparecem"
