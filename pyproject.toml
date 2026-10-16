@@ -8,9 +8,9 @@ version = "0.1.0"
 description = "Pipeline local e gratuito de Shorts/Reels com painel ao vivo"
 requires-python = ">=3.11"
 dependencies = [
-  "fastapi", "uvicorn", "aiosqlite", "pydantic>=2", "pyyaml", "feedparser",
+  "fastapi", "uvicorn[standard]", "aiosqlite", "pydantic>=2", "pyyaml", "feedparser",
   "httpx", "yt-dlp", "google-api-python-client", "google-auth-oauthlib",
-  "keyring", "mcp",
+  "keyring", "mcp>=2,<3",
 ]
 
 [project.optional-dependencies]

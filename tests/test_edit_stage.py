@@ -86,3 +86,4 @@ async def test_noticia_renders_to_editado(db, tmp_path, monkeypatch):
     assert await stage.edit_video(db, EventBus(db), {"gta6": CFG}, [], row, work_dir=tmp_path) == State.editado
     after = await get_video(db, vid)
     assert after.caminho_final.endswith("final.mp4") and after.formato == "noticia"
+    assert (tmp_path / str(vid) / "thumb.jpg").exists()

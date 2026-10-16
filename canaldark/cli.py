@@ -67,8 +67,8 @@ async def _run(args) -> None:
     db = await open_db(Path("dados/canaldark.db"))
     bus = EventBus(db)
     pipeline = Pipeline(db, bus, cfgs, load_sounds(Path("sons/catalogo.yaml")), root=Path("."), dry_run=args.ensaio)
-    server = uvicorn.Server(uvicorn.Config(create_app(pipeline), host="127.0.0.1", port=args.porta,
-                                           log_level="warning"))
+    server = uvicorn.Server(uvicorn.Config(create_app(pipeline, args.porta), host="127.0.0.1", port=args.porta,
+                                           log_level="warning", timeout_graceful_shutdown=3))
     await pipeline.start()
     print(f"Canal Dark rodando: abra http://localhost:{args.porta}" + (" (ensaio)" if args.ensaio else ""))
     try:

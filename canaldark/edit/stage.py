@@ -7,7 +7,7 @@ from pathlib import Path
 from canaldark.brain import BrainError, make_package
 from canaldark.db import claim, transition, update_fields
 from canaldark.edit.layout import FONT, bar_height, build_ass, font_size_for, wrap_headline
-from canaldark.edit.render import ImageLayer, RenderError, RenderSpec, probe, render
+from canaldark.edit.render import ImageLayer, RenderError, RenderSpec, make_thumb, probe, render
 from canaldark.edit.transcribe import Transcript, TranscribeUnavailable, transcribe
 from canaldark.edit.tts import TTSUnavailable, WordTiming, synthesize, wav_duration
 from canaldark.models import ChannelConfig, Package, Sound, State, VideoRow
@@ -135,7 +135,7 @@ async def edit_video(db, bus, cfgs: dict[str, ChannelConfig], sounds: list[Sound
         await step(25)
 
         if violations or (pkg.risco == "revisar" and not row.aprovado):
-            reason = "; ".join(violations + ([pkg.motivo_risco or "o cérebro marcou risco"] if pkg.risco == "revisar" else []))
+            reason = "; ".join(violations) or pkg.motivo_risco or "o cérebro marcou risco"
             await transition(db, row.id, State.revisar, error=reason)
             await bus.publish("video.estado", {"id": row.id, "estado": "revisar", "erro": reason})
             await bus.log("edicao", f"foi para revisão: {reason}", "aviso", row.id)
@@ -170,6 +170,10 @@ async def edit_video(db, bus, cfgs: dict[str, ChannelConfig], sounds: list[Sound
             await step(40 + p * 0.6)
 
         out = await render(spec, on_render)
+        try:
+            await make_thumb(out, work / "thumb.jpg")
+        except RenderError as e:
+            await bus.log("edicao", str(e), "aviso", row.id)
     except (TTSUnavailable, RenderError, EditFailed) as e:
         return await fail(str(e))
 

@@ -171,3 +171,13 @@ async def render(spec: RenderSpec, on_progress: Callable[[float], Awaitable[None
         raise RenderError(f"FFmpeg falhou: {err.decode(errors='replace')[-800:]}")
     await on_progress(100.0)
     return spec.out
+
+
+async def make_thumb(video: Path, out: Path, at: float = 0.5) -> Path:
+    proc = await asyncio.create_subprocess_exec(
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{at:.2f}", "-i", str(video),
+        "-frames:v", "1", "-vf", "scale=270:-2", str(out), stderr=asyncio.subprocess.PIPE)
+    _, err = await proc.communicate()
+    if proc.returncode != 0:
+        raise RenderError(f"não consegui gerar a miniatura: {err.decode(errors='replace')[-300:]}")
+    return out

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Canal Dark</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topo">
+    <h1>Canal Dark</h1>
+    <span id="ensaio" class="selo" hidden>ensaio</span>
+    <select id="canal" aria-label="Canal"><option value="">Todos os canais</option></select>
+    <div class="acoes">
+      <button id="buscar" title="Buscar novidades agora no canal escolhido">Buscar agora</button>
+      <button id="pausar">Pausar tudo</button>
+    </div>
+    <span id="conexao" class="conexao off">desconectado</span>
+  </header>
+
+  <main class="colunas">
+    <section class="coluna" data-stage="captacao">
+      <header><h2>Captação</h2><button class="pausa-etapa" data-stage="captacao">Pausar</button></header>
+      <div class="cards"></div>
+    </section>
+    <section class="coluna" data-stage="edicao">
+      <header><h2>Edição</h2><button class="pausa-etapa" data-stage="edicao">Pausar</button></header>
+      <div class="cards"></div>
+    </section>
+    <section class="coluna" data-stage="publicacao">
+      <header><h2>Publicação</h2><button class="pausa-etapa" data-stage="publicacao">Pausar</button></header>
+      <div class="cards"></div>
+    </section>
+  </main>
+
+  <footer class="rodape">
+    <section class="log">
+      <h3>Log</h3>
+      <ol id="log"></ol>
+    </section>
+    <section class="chat">
+      <h3>Chat com o Claude Code</h3>
+      <div id="chat-msgs"></div>
+      <form id="chat-form">
+        <input id="chat-texto" autocomplete="off" placeholder="Ex.: busca agora notícias do trailer 3 de GTA 6">
+        <button type="submit">Enviar</button>
+      </form>
+    </section>
+  </footer>
+
+  <dialog id="detalhe">
+    <form method="dialog"><button class="fechar" aria-label="Fechar">✕</button></form>
+    <div id="detalhe-corpo"></div>
+  </dialog>
+
+  <template id="tpl-card">
+    <article class="card">
+      <img class="thumb" alt="" hidden>
+      <div class="info">
+        <div class="linha1"><span class="canal"></span><span class="marca"></span></div>
+        <p class="titulo"></p>
+        <div class="barra"><div class="preenchido"></div></div>
+        <p class="erro" hidden></p>
+        <button class="tentar" hidden>Tentar de novo</button>
+      </div>
+    </article>
+  </template>
+  <script src="app.js"></script>
+</body>
+</html>
