@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS videos (
   etapa_erro TEXT,
   nota INTEGER,
   instrucao TEXT,
+  aprovado INTEGER NOT NULL DEFAULT 0,
   criado_em TEXT NOT NULL,
   atualizado_em TEXT NOT NULL
 );

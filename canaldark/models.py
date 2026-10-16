@@ -34,6 +34,7 @@ class VideoRow(BaseModel):
     etapa_erro: str | None = None
     nota: int | None = None
     instrucao: str | None = None
+    aprovado: bool = False
     criado_em: str
     atualizado_em: str
 
