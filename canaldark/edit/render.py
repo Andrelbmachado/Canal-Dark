@@ -139,11 +139,11 @@ def build_ffmpeg_cmd(spec: RenderSpec) -> list[str]:
 
     font = _q(spec.font)
     text = (f"[{last}]drawtext=fontfile={font}:textfile={_q(headline_file(spec))}:fontsize={spec.font_size}"
-            f":fontcolor=black:text_align=C:line_spacing={round(spec.font_size * 0.25)}"
+            f":fontcolor=black:expansion=none:text_align=C:line_spacing={round(spec.font_size * 0.25)}"
             f":x=(w-text_w)/2:y=({spec.bar}-text_h)/2")
     if spec.bottom_text:
         text += (f",drawtext=fontfile={font}:textfile={_q(bottom_file(spec))}:fontsize=38"
-                 f":fontcolor=0x555555:x=(w-text_w)/2:y=h-200")
+                 f":fontcolor=0x555555:expansion=none:x=(w-text_w)/2:y=h-200")
     text += f",ass={_q(spec.ass_path)}:fontsdir={_q(spec.font.parent)},format=yuv420p[v]"
     filters.append(text)
     filters.append(f"{''.join(audio_parts)}amix=inputs={len(audio_parts)}:duration=longest:normalize=0,"

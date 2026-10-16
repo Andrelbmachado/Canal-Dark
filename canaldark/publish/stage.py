@@ -5,6 +5,7 @@ from collections.abc import Callable
 from datetime import datetime, time as dtime, timedelta, timezone
 from pathlib import Path
 
+from canaldark.capture.stage import fail_safely
 from canaldark.db import claim, now_iso, transition
 from canaldark.models import ChannelConfig, Package, State, VideoRow
 from canaldark.publish.base import AuthExpired, PublishResult, RetryLater, Uploader
@@ -13,6 +14,8 @@ from canaldark.publish.schedule import next_slot
 from canaldark.rules import SP, publish_allowed
 
 IDLE_SLEEP = 15
+COOLDOWN_AFTER_LIMIT = timedelta(hours=1)
+COOLDOWN: dict[tuple[str, str], datetime] = {}  # (platform, account) → try again after
 URGENT_SCORE = 9
 AI_LABEL = "Narração com voz sintética (IA)."
 
@@ -52,21 +55,46 @@ async def _channel_stats(db, channel: str, now: datetime) -> tuple[int, datetime
     return count, datetime.fromisoformat(last) if last else None
 
 
+def _blocked(platform: str, account: str, paused: set) -> bool:
+    until = COOLDOWN.get((platform, account))
+    if until is not None and until <= datetime.now(timezone.utc):
+        COOLDOWN.pop((platform, account), None)
+        until = None
+    return (platform, account) in paused or until is not None
+
+
+async def _workable(db, cfg: ChannelConfig, video_id: int, paused: set) -> bool:
+    """True when at least one platform still pending for this video can be tried now."""
+    async with db.execute("SELECT plataforma FROM publicacoes WHERE video_id = ? AND id_externo IS NOT NULL",
+                          (video_id,)) as cur:
+        done = {r[0] for r in await cur.fetchall()}
+    for platform, account in cfg.contas.items():
+        if platform in done or _blocked(platform, account, paused):
+            continue
+        if platform == "instagram" and await _ig_count_24h(db, account) >= IG_DAILY_CAP:
+            continue
+        return True
+    return False
+
+
 async def claim_due(db, cfgs: dict[str, ChannelConfig], now: datetime, *, force: bool = False,
                     video_id: int | None = None, paused: set | None = None) -> VideoRow | None:
     paused = paused or set()
     for cfg in cfgs.values():
         if not publish_allowed(cfg, now):
             continue
-        if cfg.contas and all((p, a) in paused for p, a in cfg.contas.items()):
-            continue
         sql = "SELECT id, nota FROM videos WHERE canal = ? AND estado = 'editado'"
         params: list = [cfg.id]
         if video_id is not None:
             sql += " AND id = ?"
             params.append(video_id)
-        async with db.execute(sql + " ORDER BY COALESCE(nota, 0) DESC, id LIMIT 1", params) as cur:
-            cand = await cur.fetchone()
+        async with db.execute(sql + " ORDER BY COALESCE(nota, 0) DESC, id", params) as cur:
+            candidates = await cur.fetchall()
+        cand = None
+        for c in candidates:
+            if await _workable(db, cfg, c["id"], paused):
+                cand = c
+                break
         if cand is None:
             continue
         if not force:
@@ -110,7 +138,7 @@ async def publish_video(db, bus, cfg: ChannelConfig, row: VideoRow, get_uploader
     for n, (platform, account) in enumerate(platforms):
         if platform in done:
             continue
-        if (platform, account) in paused:
+        if _blocked(platform, account, paused):
             pending = True
             continue
         if platform == "instagram" and await _ig_count_24h(db, account) >= IG_DAILY_CAP:
@@ -136,14 +164,12 @@ async def publish_video(db, bus, cfg: ChannelConfig, row: VideoRow, get_uploader
             pending = True
             continue
         except RetryLater as e:
-            await bus.log("publicacao", str(e), "aviso", row.id)
+            COOLDOWN[(platform, account)] = datetime.now(timezone.utc) + COOLDOWN_AFTER_LIMIT
+            await bus.log("publicacao", f"{e}; tento de novo em 1 h", "aviso", row.id)
             pending = True
             continue
         except Exception as e:
-            msg = f"falha ao publicar no {platform}: {e}"
-            await transition(db, row.id, State.erro, error=msg)
-            await bus.publish("video.estado", {"id": row.id, "estado": "erro", "erro": msg})
-            await bus.log("publicacao", msg, "erro", row.id)
+            await fail_safely(db, bus, row.id, "publicacao", f"falha ao publicar no {platform}: {e}")
             return State.erro
         await db.execute(
             "INSERT INTO publicacoes (video_id, plataforma, conta, id_externo, url, publicado_em) VALUES (?,?,?,?,?,?)"
@@ -159,6 +185,14 @@ async def publish_video(db, bus, cfg: ChannelConfig, row: VideoRow, get_uploader
     return final
 
 
+async def publish_guarded(db, bus, cfg: ChannelConfig, row: VideoRow, get_uploader: GetUploader,
+                          paused: set | None = None) -> None:
+    try:
+        await publish_video(db, bus, cfg, row, get_uploader, paused)
+    except Exception as e:  # never let one video stop the queue
+        await fail_safely(db, bus, row.id, "publicacao", f"erro inesperado na publicação: {e}")
+
+
 async def publish_worker(db, bus, cfgs: dict[str, ChannelConfig], get_uploader: GetUploader,
                          paused: set | None = None, stop: asyncio.Event | None = None,
                          active: Callable[[], list[str]] | None = None) -> None:
@@ -169,8 +203,4 @@ async def publish_worker(db, bus, cfgs: dict[str, ChannelConfig], get_uploader: 
         if row is None:
             await asyncio.sleep(IDLE_SLEEP)
             continue
-        try:
-            await publish_video(db, bus, cfgs[row.canal], row, get_uploader, paused)
-        except Exception as e:
-            await transition(db, row.id, State.erro, error=f"erro inesperado na publicação: {e}")
-            await bus.log("publicacao", f"erro inesperado: {e}", "erro", row.id)
+        await publish_guarded(db, bus, cfgs[row.canal], row, get_uploader, paused)

@@ -32,10 +32,10 @@ class FakeUploader:
         return PublishResult(id_externo=f"id{self.calls}", url=f"https://x/{self.calls}")
 
 
-async def _ready(db, tmp_path, channel="gta6"):
+async def _ready(db, tmp_path, channel="gta6", n=0):
     out = tmp_path / "final.mp4"
     out.write_bytes(b"x")
-    return await insert_video(db, channel, f"https://youtu.be/{channel}", "t", "s", state=State.editado,
+    return await insert_video(db, channel, f"https://youtu.be/{channel}{n}", "t", "s", state=State.editado,
                               caminho_final=str(out), pacote_json=PKG.model_dump_json(), formato="noticia")
 
 
@@ -137,3 +137,30 @@ async def test_instagram_token_expired(tmp_path, monkeypatch):
         async def noop(p): pass
         with pytest.raises(AuthExpired):
             await igm.InstagramUploader("c1").upload(video, "T", "D", [], noop)
+
+
+async def test_pending_video_does_not_block_channel_queue(db, tmp_path):
+    ids = [await _ready(db, tmp_path, n=i) for i in range(3)]
+    yt, ig = FakeUploader(), FakeUploader(fail=AuthExpired("token vencido"))
+    ups = {("youtube", "c1"): yt, ("instagram", "c1"): ig}
+    paused: set = set()
+    seen = []
+    for _ in range(4):
+        row = await stage.claim_due(db, {"gta6": CFG}, datetime.now(SP), force=True, paused=paused)
+        if row is None:
+            break
+        seen.append(row.id)
+        await stage.publish_video(db, EventBus(db), CFG, row, lambda p, a: ups.get((p, a)), paused)
+    assert seen == ids and yt.calls == 3 and ig.calls == 1
+
+
+async def test_retry_later_cools_down_account(db, tmp_path):
+    from canaldark.publish.base import RetryLater
+    stage.COOLDOWN.clear()
+    await _ready(db, tmp_path)
+    yt = FakeUploader(fail=RetryLater("cota"))
+    ups = {("youtube", "c1"): yt, ("instagram", "c1"): FakeUploader()}
+    row = await stage.claim_due(db, {"gta6": CFG}, datetime.now(SP), force=True)
+    assert await stage.publish_video(db, EventBus(db), CFG, row, lambda p, a: ups.get((p, a))) == State.editado
+    assert await stage.claim_due(db, {"gta6": CFG}, datetime.now(SP), force=True) is None
+    stage.COOLDOWN.clear()

@@ -68,6 +68,19 @@ async def capture_cycle(db, bus, cfg: ChannelConfig) -> int:
     return inserted
 
 
+async def fail_safely(db, bus, video_id: int, stage: str, msg: str) -> None:
+    """Move a video to `erro` without ever raising (it may have been discarded meanwhile)."""
+    try:
+        await transition(db, video_id, State.erro, error=msg)
+        await bus.publish("video.estado", {"id": video_id, "estado": "erro", "erro": msg})
+        await bus.log(stage, msg, "erro", video_id)
+    except Exception as e:
+        try:
+            await bus.log(stage, f"{msg} (e não consegui marcar o erro: {e})", "erro", video_id)
+        except Exception:
+            pass
+
+
 async def download_worker(db, bus, cfgs: dict[str, ChannelConfig], out_dir: Path = DOWNLOAD_DIR,
                           stop: asyncio.Event | None = None,
                           active: Callable[[], list[str]] | None = None) -> None:
@@ -84,12 +97,11 @@ async def download_worker(db, bus, cfgs: dict[str, ChannelConfig], out_dir: Path
 
         try:
             path = await download(row.url_origem, out_dir / row.canal, on_progress, cfg.cookies_navegador)
-        except DownloadFailed as e:
-            await transition(db, row.id, State.erro, error=str(e))
-            await bus.publish("video.estado", {"id": row.id, "estado": "erro", "erro": str(e)})
-            await bus.log("captacao", f"download falhou: {e}", "erro", row.id)
+            await update_fields(db, row.id, caminho_bruto=str(path))
+            await transition(db, row.id, State.baixado)
+        except Exception as e:  # never let one video stop the download queue
+            msg = str(e) if isinstance(e, DownloadFailed) else f"erro inesperado no download: {e}"
+            await fail_safely(db, bus, row.id, "captacao", msg)
             continue
-        await update_fields(db, row.id, caminho_bruto=str(path))
-        await transition(db, row.id, State.baixado)
         await bus.publish("video.estado", {"id": row.id, "estado": "baixado"})
         await bus.log("captacao", f"baixado: {path.name}", video_id=row.id)

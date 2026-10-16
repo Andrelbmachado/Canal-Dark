@@ -83,3 +83,13 @@ async def test_progress_reaches_100(media, tmp_path):
         seen.append(p)
     await render(_spec(tmp_path, media / "clip10s.mp4"), rec)
     assert seen[-1] == 100
+
+
+async def test_headline_with_percent_and_backslash_is_drawn(media, tmp_path):
+    out = await render(_spec(tmp_path, media / "clip10s.mp4", headline_lines=["Juros sobem 0,5%", "C:\\x 100%"],
+                             bottom_text="Fonte: 50% G1"), _noop)
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-ss", "1", "-i", str(out), "-frames:v", "1", "-vf",
+                        "crop=1080:600:0:20,signalstats,metadata=print:key=lavfi.signalstats.YMIN", "-f", "null", "-"],
+                       capture_output=True, text=True)
+    ymin = int(r.stderr.split("lavfi.signalstats.YMIN=")[1].split()[0])
+    assert ymin < 60  # black headline pixels exist in the white top bar

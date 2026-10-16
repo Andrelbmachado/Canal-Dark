@@ -134,3 +134,51 @@ async def test_download_retries_then_raises(tmp_path, monkeypatch):
     with pytest.raises(dl.DownloadFailed):
         await dl.download("https://youtu.be/x", tmp_path, noop, cookies_browser=None)
     assert len(calls) == 3
+
+
+def test_options_do_not_use_shared_archive(tmp_path):
+    opts = dl._options(tmp_path, lambda d: None, None)
+    assert "download_archive" not in opts and "match_filter" in opts
+
+
+async def test_long_or_skipped_video_fails_without_retry(tmp_path, monkeypatch):
+    calls = []
+
+    class Skip:
+        def __init__(self, opts): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+        def extract_info(self, url, download=True):
+            calls.append(1)
+            return {"id": "live", "duration": 7200}
+    monkeypatch.setattr(dl.yt_dlp, "YoutubeDL", Skip)
+    monkeypatch.setattr(dl, "RETRY_DELAYS", (0, 0, 0))
+
+    async def noop(p): pass
+    with pytest.raises(dl.DownloadFailed, match="longo"):
+        await dl.download("https://youtu.be/x", tmp_path, noop)
+    assert len(calls) == 1
+
+
+async def test_download_worker_survives_unexpected_error(db, tmp_path, monkeypatch):
+    import asyncio
+
+    from canaldark.capture import stage as cap
+    from canaldark.db import insert_video
+    vid = await insert_video(db, "gta6", "https://youtu.be/z", "t", "s")
+    vid2 = await insert_video(db, "gta6", "https://youtu.be/w", "t", "s")
+
+    async def boom(url, out_dir, on_progress, cookies_browser=None):
+        if url.endswith("z"):
+            raise OSError("disco cheio")
+        return tmp_path / "w.mp4"
+    monkeypatch.setattr(cap, "download", boom)
+    monkeypatch.setattr(cap, "IDLE_SLEEP", 0.01)
+    stop = asyncio.Event()
+    task = asyncio.create_task(cap.download_worker(db, EventBus(db), {"gta6": CFG}, tmp_path, stop))
+    await asyncio.sleep(0.2)
+    stop.set()
+    await asyncio.wait_for(task, 2)
+    assert (await get_video(db, vid)).estado == State.erro and "disco cheio" in (await get_video(db, vid)).erro
+    assert (await get_video(db, vid2)).estado == State.baixado

@@ -17,8 +17,8 @@ from canaldark.chat.bridge import ChatBridge
 from canaldark.config import load_channels
 from canaldark.db import InvalidTransition, claim, get_video, transition, update_fields
 from canaldark.models import State, VideoRow
-from canaldark.publish.stage import publish_video
-from canaldark.rules import SP
+from canaldark.publish.stage import publish_guarded
+from canaldark.rules import SP, publish_allowed
 
 STATIC = Path(__file__).parent / "static"
 STAGE_LABEL = {"captacao": "captação", "edicao": "edição", "publicacao": "publicação"}
@@ -122,6 +122,33 @@ def append_source(path: Path, entry: dict) -> None:
         lines[end - 1] += "\n"
     lines[end:end] = block
     path.write_text("".join(lines), encoding="utf-8")
+
+
+def _now() -> datetime:
+    return datetime.now(SP)
+
+
+class LocalOnly:
+    """Rejects requests from other websites (Origin) and DNS rebinding (Host): the panel is for this machine."""
+
+    def __init__(self, app, port: int):
+        self.app = app
+        self.hosts = {f"{h}:{port}" for h in ("localhost", "127.0.0.1", "[::1]")} | {"localhost", "127.0.0.1"}
+        self.origins = {f"http://{h}" for h in self.hosts}
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] in ("http", "websocket"):
+            headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
+            origin = headers.get("origin")
+            if headers.get("host") not in self.hosts or (origin is not None and origin not in self.origins):
+                if scope["type"] == "websocket":
+                    await send({"type": "websocket.close", "code": 1008})
+                    return
+                await send({"type": "http.response.start", "status": 403,
+                            "headers": [(b"content-type", b"application/json")]})
+                await send({"type": "http.response.body", "body": b'{"detail":"acesso permitido s\xc3\xb3 pelo painel local"}'})
+                return
+        await self.app(scope, receive, send)
 
 
 def load_channels_safe(path: Path) -> str | None:
@@ -246,11 +273,13 @@ def create_app(pipeline, port: int = 8000) -> FastAPI:
         row = await must_get(video_id)
         if row.estado != State.editado:
             raise HTTPException(409, "só dá para publicar agora um vídeo editado")
+        if not publish_allowed(pipeline.cfgs[row.canal], _now()):
+            raise HTTPException(409, "publicação de política suspensa na janela do TSE (22 a 26/10/2026)")
         claimed = await claim(db, State.editado, State.publicando, video_id=video_id)
         if claimed is None:
             raise HTTPException(409, "o vídeo já está sendo publicado")
-        in_background(publish_video(db, bus, pipeline.cfgs[row.canal], claimed, pipeline.get_uploader,
-                                    pipeline.paused_accounts))
+        in_background(publish_guarded(db, bus, pipeline.cfgs[row.canal], claimed, pipeline.get_uploader,
+                                      pipeline.paused_accounts))
         return {"ok": True, "estado": "publicando"}
 
     @app.post("/api/videos/{video_id}/redo")
@@ -308,7 +337,9 @@ def create_app(pipeline, port: int = 8000) -> FastAPI:
 
     @app.post("/api/pause")
     async def pause(body: PauseBody):
-        until = body.until.astimezone(SP) if body.until else None
+        until = None
+        if body.until:  # a time without timezone means Brasília time
+            until = body.until.replace(tzinfo=SP) if body.until.tzinfo is None else body.until.astimezone(SP)
         pipeline.pause(body.channel, body.stage, until)
         what = " ".join(x for x in [body.channel or "todos os canais", STAGE_LABEL.get(body.stage or "", "")] if x)
         await bus.log("sistema", f"pausado: {what}" + (f" até {until:%d/%m %H:%M}" if until else ""))
@@ -354,4 +385,5 @@ def create_app(pipeline, port: int = 8000) -> FastAPI:
             sub.close()
 
     app.mount("/", StaticFiles(directory=STATIC, html=True), name="static")
+    app.add_middleware(LocalOnly, port=port)
     return app

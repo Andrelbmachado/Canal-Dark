@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from canaldark.brain import BrainError, make_package
+from canaldark.capture.stage import fail_safely
 from canaldark.db import claim, transition, update_fields
 from canaldark.edit.layout import FONT, bar_height, build_ass, font_size_for, wrap_headline
 from canaldark.edit.render import ImageLayer, RenderError, RenderSpec, make_thumb, probe, render
@@ -196,6 +197,4 @@ async def edit_worker(db, bus, cfgs: dict[str, ChannelConfig], sounds: list[Soun
         try:
             await edit_video(db, bus, cfgs, sounds, row, work_dir)
         except Exception as e:  # never let one video stop the queue
-            await transition(db, row.id, State.erro, error=f"erro inesperado na edição: {e}")
-            await bus.publish("video.estado", {"id": row.id, "estado": "erro", "erro": str(e)})
-            await bus.log("edicao", f"erro inesperado: {e}", "erro", row.id)
+            await fail_safely(db, bus, row.id, "edicao", f"erro inesperado na edição: {e}")
