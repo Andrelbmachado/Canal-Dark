@@ -134,9 +134,10 @@ Sons disponíveis:
 Escreva a manchete já quebrada em linhas de até 22 caracteres. Roteiro de 15 a 40 s falado (formato noticia),
 diálogo de 30 a 60 s (formato dialogo) ou nada (meme). Responda SOMENTE com um objeto JSON neste schema:
 {_schema_hint(Package)}"""
-    return await ask_json(prompt, Package)
+    return await ask_json(prompt, Package, timeout=PACKAGE_TIMEOUT)
 
 
+PACKAGE_TIMEOUT = 360  # a 60 s dialogue script can take minutes on `claude -p`
 TRIAGE_MAX = 30          # bigger prompts made `claude -p` take 5+ min on a 140-item Google News feed
 TRIAGE_TIMEOUT = 420
 
