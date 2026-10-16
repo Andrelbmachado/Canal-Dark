@@ -1,0 +1,23 @@
+id: gta6
+nome: "GTA 6 News BR"
+idioma: pt-BR
+intervalo_captacao_min: 30
+nota_minima: 6
+max_por_dia: 4
+fontes:
+  - tipo: google_news
+    busca: 'GTA 6 OR "GTA VI" OR Rockstar'
+  - tipo: youtube_canal
+    id: UCmDTrq0LNgPodDOFZiSbsww   # Rockstar Games (conferir no YouTube)
+  - tipo: reddit
+    sub: GTA6
+formatos: { noticia: 0.6, meme: 0.25, dialogo: 0.15 }
+estilo_manchete: "urgente, curiosa, sem clickbait mentiroso, até 60 caracteres"
+persona_roteiro: "narrador gamer brasileiro, direto, com uma pitada de humor"
+voz: { motor: kokoro, id: pm_alex }
+personagens: [novato, veterano]
+horarios: ["09:00", "12:00", "18:00", "21:00"]
+contas: { youtube: gta6, instagram: gta6 }
+regras_extras:
+  - "nunca usar material vazado"
+  - "sem conteúdo de IA imitando o jogo"
