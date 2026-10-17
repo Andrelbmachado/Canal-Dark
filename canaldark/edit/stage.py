@@ -1,200 +1,142 @@
-"""Edit stage: transcribe → package from the brain → rules check → voice → 9:16 render."""
+"""Etapa de edição: pronto → editando → editado (ou revisar); texto e estilo por regras fixas, sem IA."""
 import asyncio
-from collections.abc import Callable
-import json
+import random
 from pathlib import Path
 
-from canaldark.brain import BrainError, make_package
-from canaldark.capture.stage import fail_safely
-from canaldark.db import claim, transition, update_fields
-from canaldark.edit.layout import FONT, bar_height, build_ass, font_size_for, wrap_headline
-from canaldark.edit.render import ImageLayer, RenderError, RenderSpec, make_thumb, probe, render
-from canaldark.edit.transcribe import Transcript, TranscribeUnavailable, transcribe
-from canaldark.edit.tts import TTSUnavailable, WordTiming, synthesize, wav_duration
-from canaldark.models import ChannelConfig, Package, Sound, State, VideoRow
-from canaldark.rules import check
+from canaldark.context import Ctx
+from canaldark.db import claim, recent_styles, transition, update_fields
+from canaldark.edit.cards import drawable
+from canaldark.edit.layout import FONT
+from canaldark.edit.render import RenderError, extract_frame, make_thumb, probe, run_ffmpeg
+from canaldark.edit.styles import FALLBACK_STYLE, StyleInputs, available_styles, choose_style, prepare_job
+from canaldark.edit.transcribe import TranscribeUnavailable, transcribe
+from canaldark.manchete import headline_for
+from canaldark.models import ChannelConfig, State, StylePreset, VideoRow, WordTiming
 
-WORK_DIR = Path("dados/editados")
-SOUNDS_DIR = Path("sons")
-CHARACTERS_DIR = Path("personagens")
-EXTRA_VOICES = ["pf_dora", "pm_santa"]
-FORMAT_SECONDS = {"noticia": (15, 40), "meme": (7, 15), "dialogo": (30, 60)}
 IDLE_SLEEP = 3
+# usado só se estilos/faixa_cima.yaml sumir: o estilo de reserva precisa existir sempre
+_FALLBACK_PRESET = StylePreset(nome=FALLBACK_STYLE, rotulo="Faixa em cima", tipo="faixa_cima", fonte_min=60,
+                               fonte_max=72)
 
 
 class EditFailed(Exception):
-    pass
+    """Falha prevista da edição; a mensagem (em português) vai como está para o erro do vídeo."""
 
 
-async def _recent(db, channel: str, exclude: int) -> tuple[list[str], list[str]]:
-    async with db.execute(
-        "SELECT pacote_json, formato FROM videos WHERE canal = ? AND id != ? AND pacote_json IS NOT NULL"
-        " ORDER BY id DESC LIMIT 20", (channel, exclude)) as cur:
-        rows = await cur.fetchall()
-    headlines = [" ".join(json.loads(r["pacote_json"]).get("manchete", [])) for r in reversed(rows)]
-    return headlines, [r["formato"] for r in rows[:2] if r["formato"]]
-
-
-def _clamp(fmt: str, seconds: float) -> float:
-    lo, hi = FORMAT_SECONDS[fmt]
-    return max(lo, min(hi, seconds))
-
-
-async def _concat_wavs(parts: list[Path], out: Path, gap: float = 0.25) -> None:
-    args = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
-    for p in parts:
-        args += ["-i", str(p)]
-    chain = "".join(f"[{i}:a]aresample=24000,apad=pad_dur={gap}[p{i}];" for i in range(len(parts)))
-    chain += "".join(f"[p{i}]" for i in range(len(parts))) + f"concat=n={len(parts)}:v=0:a=1[a]"
-    proc = await asyncio.create_subprocess_exec(*args, "-filter_complex", chain, "-map", "[a]", str(out),
-                                                stderr=asyncio.subprocess.PIPE)
-    _, err = await proc.communicate()
-    if proc.returncode != 0:
-        raise EditFailed(f"não consegui juntar as falas: {err.decode(errors='replace')[-300:]}")
-
-
-async def _voice(pkg: Package, cfg: ChannelConfig, work: Path) -> tuple[Path | None, list[WordTiming], list[ImageLayer]]:
-    if pkg.formato == "noticia":
-        narr = work / "narracao.wav"
-        words = await synthesize(pkg.roteiro, cfg.voz.id, narr, cfg.voz.motor)
-        return narr, words, []
-    if pkg.formato == "dialogo":
-        names = list(dict.fromkeys([*cfg.personagens, *(line.personagem for line in pkg.dialogo)]))
-        voices = {n: ([cfg.voz.id, *EXTRA_VOICES])[i % (1 + len(EXTRA_VOICES))] for i, n in enumerate(names)}
-        parts, words, layers, t = [], [], [], 0.0
-        for i, line in enumerate(pkg.dialogo):
-            part = work / f"fala{i:02d}.wav"
-            words += await synthesize(line.fala, voices[line.personagem], part, cfg.voz.motor, offset=t)
-            dur = wav_duration(part)
-            img = CHARACTERS_DIR / f"{line.personagem}.png"
-            if img.exists():
-                layers.append(ImageLayer(img, t, t + dur + 0.25))
-            parts.append(part)
-            t += dur + 0.25
-        narr = work / "narracao.wav"
-        await _concat_wavs(parts, narr)
-        return narr, words, layers
-    return None, [], []
-
-
-async def _sound(pkg: Package, sounds: list[Sound], duration: float) -> tuple[Path | None, float | None]:
-    snd = next((s for s in sounds if s.id == pkg.som), None) if pkg.som else None
-    if snd is None or not (SOUNDS_DIR / snd.arquivo).exists():
-        return None, None
-    path = SOUNDS_DIR / snd.arquivo
-    if snd.momento == "inicio":
-        return path, 0.0
-    if snd.momento == "antes_revelacao":
-        return path, round(duration * 0.6, 2)
-    length = (await probe(path)).duration
-    return path, max(0.0, duration - length)
-
-
-async def edit_video(db, bus, cfgs: dict[str, ChannelConfig], sounds: list[Sound], row: VideoRow,
-                     work_dir: Path = WORK_DIR) -> State:
-    cfg = cfgs[row.canal]
-    work = work_dir / str(row.id)
-    work.mkdir(parents=True, exist_ok=True)
-    src = Path(row.caminho_bruto) if row.caminho_bruto else None
-
-    async def fail(msg: str) -> State:
-        await transition(db, row.id, State.erro, error=msg)
-        await bus.publish("video.estado", {"id": row.id, "estado": "erro", "erro": msg})
-        await bus.log("edicao", msg, "erro", row.id)
-        return State.erro
-
-    async def step(pct: float) -> None:
-        await bus.progress(row.id, pct)
-
+async def _fail(ctx: Ctx, video_id: int, msg: str) -> State:
+    """Leva o vídeo para `erro` sem nunca lançar (ele pode ter mudado de estado no meio do caminho)."""
     try:
-        transcript = Transcript("", [])
-        if src is not None:
+        await transition(ctx.db, video_id, State.erro, error=msg)
+        await ctx.bus.publish("video.estado", {"id": video_id, "estado": "erro", "erro": msg})
+        await ctx.bus.log("edicao", msg, "erro", video_id)
+    except Exception as e:
+        try:
+            await ctx.bus.log("edicao", f"{msg} (e não consegui marcar o erro: {e})", "erro", video_id)
+        except Exception:
+            pass
+    return State.erro
+
+
+def _auto_headline(row: VideoRow, cfg: ChannelConfig) -> str:
+    text = headline_for(row.titulo_origem, cfg.manchete_padrao, row.id)
+    if sum(ch.isalpha() for ch in drawable(text, FONT)) < 3:  # letras que a fonte não desenha (ex.: japonês)
+        return headline_for("", cfg.manchete_padrao, row.id)
+    return text
+
+
+async def _pick_style(ctx: Ctx, row: VideoRow, cfg: ChannelConfig, rng: random.Random | None) -> str:
+    reasons = available_styles(ctx.styles, ctx.memes, ctx.root / "memes")
+    free = {name for name, why in reasons.items() if why is None}
+    if row.estilo:
+        if row.estilo in free:
+            return row.estilo
+        why = reasons.get(row.estilo) or "não existe em estilos/"
+        await ctx.bus.log("edicao", f"estilo {row.estilo} indisponível ({why}); usando {FALLBACK_STYLE}", "aviso",
+                          row.id)
+        return FALLBACK_STYLE
+    return choose_style(cfg.estilos[row.tom], await recent_styles(ctx.db, row.canal), free, rng or random.Random())
+
+
+async def _words(ctx: Ctx, row: VideoRow, src: Path) -> list[WordTiming]:
+    try:
+        return (await transcribe(src)).words
+    except TranscribeUnavailable as e:
+        await ctx.bus.log("edicao", f"{e}; o karaokê sai sem legenda", "aviso", row.id)
+    except Exception as e:
+        await ctx.bus.log("edicao", f"não consegui transcrever ({e}); o karaokê sai sem legenda", "aviso", row.id)
+    return []
+
+
+async def edit_video(ctx: Ctx, row: VideoRow, *, rng: random.Random | None = None) -> State:
+    """Edita um vídeo que já está em `editando`; qualquer falha vira `erro` (fila `pronto`) e nunca relança."""
+    try:
+        cfg = ctx.cfgs.get(row.canal)
+        if cfg is None:
+            raise EditFailed(f"o canal {row.canal} não está mais em canais/")
+        work = ctx.data / "editados" / str(row.id)
+        src = Path(row.caminho_local) if row.caminho_local else None
+        if src is None or not src.is_file():
+            raise EditFailed(f"arquivo de origem não encontrado: {row.caminho_local or '(nenhum)'}")
+        text = row.manchete or _auto_headline(row, cfg)
+        name = await _pick_style(ctx, row, cfg, rng)
+        preset = ctx.styles.get(name) or _FALLBACK_PRESET
+        work.mkdir(parents=True, exist_ok=True)
+        inp = StyleInputs(src=src, info=await probe(src), text=text, credit=row.autor, work=work,
+                          texto_base=cfg.texto_base, out=work / f"{row.id}.mp4")  # o nome vira o nome no Drive
+        if preset.tipo == "karaoke":
+            inp.words = await _words(ctx, row, src)
+        elif preset.tipo == "meme":
+            inp.meme = ctx.memes[preset.meme]
+            inp.meme_clip = ctx.root / "memes" / inp.meme.clipe
+            inp.meme_info = await probe(inp.meme_clip)
+            capa = Path(row.caminho_capa) if row.caminho_capa else None
+            inp.capa = capa if capa and capa.is_file() else await extract_frame(src, work / "capa.jpg")
+        job = prepare_job(preset, inp)
+
+        async def progress(pct: float) -> None:
+            await ctx.bus.progress(row.id, pct)
+
+        out = await run_ffmpeg(job, progress)
+        try:
+            await make_thumb(out, ctx.data / "capas" / f"{row.id}-final.jpg")
+        except RenderError as e:  # sem a miniatura o painel mostra a capa da origem; o vídeo segue
+            await ctx.bus.log("edicao", str(e), "aviso", row.id)
+        await update_fields(ctx.db, row.id, estilo=name, manchete=text, caminho_final=str(out))
+        to = State.revisar if cfg.revisar_antes_de_publicar else State.editado
+        await transition(ctx.db, row.id, to)
+        await ctx.bus.publish("video.estado", {"id": row.id, "estado": to.value})
+        await ctx.bus.log("edicao", f"editado ({name}, {job.duration:.0f} s)", video_id=row.id)
+        return to
+    except (RenderError, EditFailed) as e:
+        return await _fail(ctx, row.id, str(e))
+    except Exception as e:
+        return await _fail(ctx, row.id, f"erro inesperado na edição: {e}")
+
+
+async def _idle(ctx: Ctx, seconds: float) -> None:
+    try:
+        await asyncio.wait_for(ctx.stop.wait(), timeout=seconds)
+    except asyncio.TimeoutError:
+        pass
+
+
+async def edit_worker(ctx: Ctx) -> None:
+    """Tira um vídeo de `pronto` dos canais ativos na aba Edição por vez, até `ctx.stop`."""
+    while not ctx.stop.is_set():
+        row = None
+        try:
+            row = await claim(ctx.db, State.pronto, State.editando, channels=ctx.channels_for("edicao"))
+            if row is None:
+                await _idle(ctx, IDLE_SLEEP)
+                continue
+            await ctx.bus.publish("video.estado", {"id": row.id, "estado": "editando"})
+            await edit_video(ctx, row)
+        except Exception as e:  # um vídeo nunca para a fila, e uma falha do banco não mata o trabalhador
+            if row is not None:
+                await _fail(ctx, row.id, f"erro inesperado na edição: {e}")
+                continue
             try:
-                transcript = await transcribe(src)
-            except TranscribeUnavailable as e:
-                await bus.log("edicao", f"{e}; seguindo sem transcrição", "aviso", row.id)
-        await step(10)
-
-        if row.aprovado and row.pacote_json:
-            pkg = Package.model_validate_json(row.pacote_json)
-            violations: list[str] = []
-        else:
-            headlines, recent_formats = await _recent(db, row.canal, row.id)
-            try:
-                pkg = await make_package(cfg, row.titulo_origem, row.fonte, transcript.text, headlines, sounds,
-                                         has_video=src is not None, instruction=row.instrucao)
-            except BrainError as e:
-                return await fail(f"o cérebro não respondeu: {e}")
-            violations = check(pkg, cfg, recent_formats)
-            if src is None and pkg.formato != "dialogo":
-                violations.append("sem vídeo de origem: só o formato dialogo é possível")
-        try:
-            lines = wrap_headline(" ".join(pkg.manchete))
-        except ValueError as e:
-            lines, violations = pkg.manchete, [*violations, str(e)]
-        await update_fields(db, row.id, pacote_json=pkg.model_dump_json(), formato=pkg.formato)
-        await step(25)
-
-        if violations or (pkg.risco == "revisar" and not row.aprovado):
-            reason = "; ".join(violations) or pkg.motivo_risco or "o cérebro marcou risco"
-            await transition(db, row.id, State.revisar, error=reason)
-            await bus.publish("video.estado", {"id": row.id, "estado": "revisar", "erro": reason})
-            await bus.log("edicao", f"foi para revisão: {reason}", "aviso", row.id)
-            return State.revisar
-
-        narration, words, layers = await _voice(pkg, cfg, work)
-        await step(40)
-
-        info = await probe(src) if src else None
-        if pkg.formato == "meme":
-            clip_len = info.duration - (pkg.corte.inicio if pkg.corte else 0)
-            if pkg.corte and pkg.corte.fim:
-                clip_len = pkg.corte.fim - pkg.corte.inicio
-            duration = _clamp("meme", clip_len)
-            offset = pkg.corte.inicio if pkg.corte else 0
-            words = [WordTiming(w.word, w.start - offset, w.end - offset) for w in transcript.words
-                     if offset <= w.start < offset + duration]
-        else:
-            duration = _clamp(pkg.formato, wav_duration(narration) + 0.6)
-        bar = bar_height(info.width, info.height) if info else 420
-        ass = work / "legendas.ass"
-        ass.write_text(build_ass(words, "palavra", margin_v=bar + 40), encoding="utf-8")
-        sound, sound_at = await _sound(pkg, sounds, duration)
-
-        spec = RenderSpec(src=src, cut=pkg.corte if pkg.formato == "meme" else None, headline_lines=lines,
-                          font=FONT, font_size=font_size_for(lines, bar), bar=bar,
-                          bottom_text=f"Fonte: {pkg.fonte}", ass_path=ass, narration=narration, sound=sound,
-                          sound_at=sound_at, out=work / "final.mp4", image_layers=layers, duration=duration,
-                          src_has_audio=bool(info and info.has_audio))
-
-        async def on_render(p: float) -> None:
-            await step(40 + p * 0.6)
-
-        out = await render(spec, on_render)
-        try:
-            await make_thumb(out, work / "thumb.jpg")
-        except RenderError as e:
-            await bus.log("edicao", str(e), "aviso", row.id)
-    except (TTSUnavailable, RenderError, EditFailed) as e:
-        return await fail(str(e))
-
-    await update_fields(db, row.id, caminho_final=str(out))
-    await transition(db, row.id, State.editado)
-    await bus.publish("video.estado", {"id": row.id, "estado": "editado"})
-    await bus.log("edicao", f"editado ({pkg.formato}, {duration:.0f} s)", video_id=row.id)
-    return State.editado
-
-
-async def edit_worker(db, bus, cfgs: dict[str, ChannelConfig], sounds: list[Sound],
-                      work_dir: Path = WORK_DIR, stop: asyncio.Event | None = None,
-                      active: Callable[[], list[str]] | None = None) -> None:
-    while stop is None or not stop.is_set():
-        row = await claim(db, State.baixado, State.editando, channels=active() if active else list(cfgs))
-        if row is None:
-            await asyncio.sleep(IDLE_SLEEP)
-            continue
-        await bus.publish("video.estado", {"id": row.id, "estado": "editando"})
-        try:
-            await edit_video(db, bus, cfgs, sounds, row, work_dir)
-        except Exception as e:  # never let one video stop the queue
-            await fail_safely(db, bus, row.id, "edicao", f"erro inesperado na edição: {e}")
+                await ctx.bus.log("edicao", f"não consegui pegar o próximo vídeo: {e}", "erro")
+            except Exception:
+                pass
+            await _idle(ctx, IDLE_SLEEP)
