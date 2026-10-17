@@ -3,7 +3,7 @@ import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Literal, Protocol
 
 import keyring
 
@@ -22,6 +22,7 @@ class RetryLater(Exception):
 class PublishResult:
     id_externo: str
     url: str
+    status: Literal["publicado", "rascunho"] = "publicado"   # rascunho: TikTok inbox, the user posts from the app
 
 
 class Uploader(Protocol):
@@ -38,3 +39,12 @@ def load_secret(platform: str, account: str) -> dict:
 
 def save_secret(platform: str, account: str, data: dict) -> None:
     keyring.set_password(SERVICE, f"{platform}:{account}", json.dumps(data))
+
+
+def account_status(platform: str, account: str) -> Literal["conectada", "falta"]:
+    """Reads only the keyring (no network): "conectada" when a token is stored for platform:account."""
+    try:
+        raw = keyring.get_password(SERVICE, f"{platform}:{account}")
+    except Exception:  # no keyring backend or a locked keychain: the account cannot be used
+        return "falta"
+    return "conectada" if raw else "falta"
