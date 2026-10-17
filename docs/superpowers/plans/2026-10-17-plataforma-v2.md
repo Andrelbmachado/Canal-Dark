@@ -1046,6 +1046,7 @@ def test_install_writes_and_bootstraps(tmp_path, monkeypatch): ...   # run falso
 | POST `/api/capture-now` | `channel` | `{novos: n}` |
 | GET `/media/{id}/{nome}` | `final.mp4`, `local.mp4`, `origem.jpg`, `final.jpg` | arquivo, ou 404 |
 | GET `/fonte.ttf` | — | `FONT` |
+| GET `/`, `/static/*` | — | os arquivos do painel com `Cache-Control: no-cache` (no Mac, o navegador guardava versões velhas do painel v1) |
 | WS `/ws` | — | os eventos do bus (como no v1) |
 
 **Campos de cada card:**
@@ -1159,5 +1160,6 @@ def test_ws_streams_events(...): ...               # header host localhost:8001
 - Achados Minor ficam listados para o André.
 
 **Verificação no Mac do André:**
-1. A sessão do Mac guarda as mudanças locais do v1 (`git stash`), faz `git pull`, roda `pip install -e ".[ml]"` e `canaldark run --ensaio`.
-2. Confere as 3 abas em `http://localhost:8001` e deixa um pacote rodar até `arquivado` com fontes reais do YouTube.
+1. O v1 continua rodando na porta 8000, na pasta atual. As mudanças locais dele ficam guardadas num branch local `v1-ensaio`, fora deste PR.
+2. O v2 roda numa pasta separada: `git fetch origin feat/v1 && git worktree add ../canal-dark-v2 origin/feat/v1`, um `.venv` próprio, `pip install -e ".[ml]"` e `canaldark run --ensaio` (porta 8001). Cada pasta tem o seu `dados/`, então os dois não se misturam.
+3. Confere as 3 abas em `http://localhost:8001` e deixa um pacote rodar até `arquivado` com fontes reais do YouTube.
