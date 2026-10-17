@@ -1,0 +1,7 @@
+# Faixa branca em cima com o texto (300, 420 ou 540 px de altura); o vídeo preenche o resto da tela.
+# Campos opcionais: cor_faixa, cor_texto, alinhamento (centro ou esquerda), fonte_min, fonte_max.
+rotulo: "Faixa em cima"
+tipo: faixa_cima
+alinhamento: centro
+fonte_min: 60
+fonte_max: 72

@@ -1,0 +1,5 @@
+# Fundo com o próprio vídeo borrado e um cartão branco de comentário (avatar, @autor e o texto)
+# com o vídeo dentro.
+# Campos opcionais: cor_faixa, cor_texto, alinhamento (centro ou esquerda), fonte_min, fonte_max.
+rotulo: "Comentário"
+tipo: comentario

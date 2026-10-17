@@ -1,0 +1,5 @@
+# Vídeo em tela cheia, faixa com o texto em cima e legenda palavra por palavra (a palavra atual
+# em amarelo). A legenda precisa do faster-whisper: pip install -e ".[ml]". Sem ele, sai sem legenda.
+# Campos opcionais: cor_faixa, cor_texto, alinhamento (centro ou esquerda), fonte_min, fonte_max.
+rotulo: "Legenda karaokê"
+tipo: karaoke

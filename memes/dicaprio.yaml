@@ -1,0 +1,3 @@
+# Meme do DiCaprio: coloque o clipe limpo em memes/dicaprio.mp4 (veja memes/LEIAME.md).
+clipe: dicaprio.mp4
+imagem_em: cima   # cima: a capa do vídeo captado fica em cima e o clipe embaixo; baixo: o contrário

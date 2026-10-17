@@ -1,0 +1,5 @@
+# Faixa com o texto em cima; embaixo, a capa do vídeo captado e o clipe do Shrek (memes/shrek.mp4).
+# Sem o clipe, o estilo aparece como "falta o clipe" e o vídeo sai em faixa_cima.
+rotulo: "Meme do Shrek"
+tipo: meme
+meme: shrek

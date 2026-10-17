@@ -1,0 +1,40 @@
+id: politica
+nome: "Eleições 2026"
+regras: politica           # pausa a publicação na janela eleitoral (22 a 26/10/2026)
+pausa_eleitoral: true      # false desliga essa pausa
+
+# Captação
+intervalo_captacao_min: 30
+captar_por_dia: 20
+estoque_max: 60            # a captação pausa com 60 vídeos esperando no Drive
+
+# Fontes do canal (também dá para editar na aba Captação)
+fontes:
+  - tipo: youtube_canal
+    url: https://www.youtube.com/@investigapinhel   # canal provisório, mude na aba Captação
+    tom: serio
+    autorizado: false
+  - tipo: youtube_busca
+    busca: "Lula Flávio Bolsonaro"
+    tom: serio
+  - tipo: youtube_busca
+    busca: "meme Lula Bolsonaro"
+    tom: meme
+
+palavras_chave: [Lula, Flávio Bolsonaro, Bolsonaro, eleição, eleições, debate, segundo turno, pesquisa, TSE]
+
+# Edição: chance de cada estilo, por tom da fonte (cada tabela soma 1.0)
+estilos:
+  serio: {faixa_cima: 0.5, faixa_dupla: 0.3, karaoke: 0.2}
+  meme: {comentario: 0.4, meme_shrek: 0.3, meme_dicaprio: 0.3}
+manchete_padrao: ["Olha o que aconteceu na eleição", "Você viu isso?", "Isso está dando o que falar"]
+texto_base: "Siga para acompanhar as eleições"
+revisar_antes_de_publicar: false
+
+# Publicação
+horarios: ["07:30", "12:30", "19:00", "22:00"]
+max_por_dia: 4
+contas: {youtube: politica, instagram: politica, facebook: politica, tiktok: politica}
+hashtags: ["#eleicoes2026", "#politica", "#lula", "#bolsonaro"]
+tiktok_modo: rascunho      # troque para publicar depois que o app do TikTok passar na auditoria
+# cookies_navegador: chrome   # use se o YouTube pedir para confirmar que não é um robô

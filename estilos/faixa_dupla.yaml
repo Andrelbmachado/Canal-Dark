@@ -1,0 +1,5 @@
+# Faixa de 480 px em cima com o texto, o vídeo no meio e uma faixa de 480 px embaixo
+# com o texto_base do canal e o crédito.
+# Campos opcionais: cor_faixa, cor_texto, alinhamento (centro ou esquerda), fonte_min, fonte_max.
+rotulo: "Faixa dupla"
+tipo: faixa_dupla

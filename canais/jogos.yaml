@@ -1,0 +1,39 @@
+id: jogos
+nome: "Jogos e GTA 6"
+
+# Captação
+intervalo_captacao_min: 30
+captar_por_dia: 20
+estoque_max: 60            # a captação pausa com 60 vídeos esperando no Drive
+
+# Fontes do canal (também dá para editar na aba Captação)
+fontes:
+  - tipo: youtube_canal
+    url: https://www.youtube.com/@GaiaMemes   # canal provisório, mude na aba Captação
+    tom: meme
+    autorizado: false
+  - tipo: youtube_busca
+    busca: "GTA 6"
+    tom: serio
+  - tipo: youtube_busca
+    busca: "meme games"
+    tom: meme
+
+palavras_chave: [GTA 6, GTA VI, Rockstar, PlayStation, Xbox, Nintendo, Minecraft, Fortnite]
+palavras_proibidas: [leak, vazado, vazamento]   # título com uma delas não entra
+
+# Edição: chance de cada estilo, por tom da fonte (cada tabela soma 1.0)
+estilos:
+  serio: {faixa_cima: 0.5, faixa_dupla: 0.3, karaoke: 0.2}
+  meme: {comentario: 0.4, meme_shrek: 0.3, meme_dicaprio: 0.3}
+manchete_padrao: ["Quem joga vai entender", "Olha isso no jogo", "Gamers, vocês viram?"]
+texto_base: "Siga para mais games"
+revisar_antes_de_publicar: false
+
+# Publicação
+horarios: ["09:00", "12:00", "18:00", "21:00"]
+max_por_dia: 4
+contas: {youtube: jogos, instagram: jogos, facebook: jogos, tiktok: jogos}
+hashtags: ["#gta6", "#games", "#gamer"]
+tiktok_modo: rascunho      # troque para publicar depois que o app do TikTok passar na auditoria
+# cookies_navegador: chrome   # use se o YouTube pedir para confirmar que não é um robô
