@@ -4,7 +4,7 @@ import textwrap
 from pathlib import Path
 from typing import Literal
 
-from canaldark.edit.tts import WordTiming
+from canaldark.models import WordTiming
 
 FONT = Path(__file__).resolve().parents[2] / "fontes" / "Montserrat-ExtraBold.ttf"
 FONT_NAME = "Montserrat ExtraBold"

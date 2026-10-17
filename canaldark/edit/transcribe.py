@@ -3,7 +3,7 @@ import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from canaldark.edit.tts import WordTiming
+from canaldark.models import WordTiming
 
 
 @dataclass

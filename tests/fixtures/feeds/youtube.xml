@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom">
-<title>Rockstar Games</title>
-<entry><id>yt:video:VID123</id><yt:videoId>VID123</yt:videoId><title>Grand Theft Auto VI Trailer 3</title>
-<link rel="alternate" href="https://www.youtube.com/watch?v=VID123"/><published>2026-10-15T15:00:00+00:00</published>
-<media:group><media:description>Trailer oficial</media:description></media:group></entry>
-</feed>

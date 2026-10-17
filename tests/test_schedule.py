@@ -4,9 +4,9 @@ from canaldark.models import ChannelConfig
 from canaldark.publish.schedule import next_slot
 from canaldark.rules import SP
 
-CFG = ChannelConfig(id="gta6", nome="GTA", fontes=[{"tipo": "google_news", "busca": "GTA 6"}],
-                    formatos={"noticia": 1.0}, estilo_manchete="a", persona_roteiro="b", voz={"id": "pm_alex"},
-                    horarios=["09:00", "12:00", "18:00", "21:00"], contas={"youtube": "gta6"}, max_por_dia=4)
+CFG = ChannelConfig(id="jogos", nome="Jogos", fontes=[{"tipo": "youtube_busca", "busca": "GTA 6"}],
+                    estilos={"serio": {"faixa_cima": 1.0}, "meme": {"comentario": 1.0}}, manchete_padrao=["Olha isso"],
+                    horarios=["09:00", "12:00", "18:00", "21:00"], contas={"youtube": "jogos"}, max_por_dia=4)
 
 
 def at(h, m=0, day=16):

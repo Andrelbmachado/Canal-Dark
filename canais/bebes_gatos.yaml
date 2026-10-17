@@ -1,0 +1,43 @@
+id: bebes_gatos
+nome: "Bebês e Gatos"
+
+# Captação
+intervalo_captacao_min: 30
+captar_por_dia: 20
+estoque_max: 60            # a captação pausa com 60 vídeos esperando no Drive
+
+# Fontes do canal (também dá para editar na aba Captação).
+# Só material licenciado: Pexels, Pixabay e Creative Commons. Repostar crianças de perfis
+# de terceiros tem risco legal maior (ECA e LGPD).
+fontes:
+  - tipo: pexels
+    busca: "cute cat"
+    tom: serio
+  - tipo: pexels
+    busca: "baby"
+    tom: serio
+  - tipo: pixabay
+    busca: "kitten"
+    tom: serio
+  - tipo: youtube_busca
+    busca: "gatos fofos"
+    tom: meme
+    so_creative_commons: true   # só baixa vídeos com licença Creative Commons
+
+palavras_chave: [gato, gatinho, bebê, filhote, fofo]
+
+# Edição: chance de cada estilo, por tom da fonte (cada tabela soma 1.0)
+estilos:
+  serio: {faixa_cima: 0.6, borrado: 0.4}
+  meme: {comentario: 0.5, faixa_cima: 0.5}
+manchete_padrao: ["Olha que fofura", "Impossível não sorrir", "Quem aí tem um assim?"]
+texto_base: "Siga para mais fofura"
+revisar_antes_de_publicar: false
+
+# Publicação
+horarios: ["10:00", "15:00", "20:00"]
+max_por_dia: 3
+contas: {youtube: bebes_gatos, instagram: bebes_gatos, facebook: bebes_gatos, tiktok: bebes_gatos}
+hashtags: ["#gatos", "#bebes", "#fofura"]
+tiktok_modo: rascunho      # troque para publicar depois que o app do TikTok passar na auditoria
+# cookies_navegador: chrome   # use se o YouTube pedir para confirmar que não é um robô

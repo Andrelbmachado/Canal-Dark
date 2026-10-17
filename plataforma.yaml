@@ -1,0 +1,27 @@
+# Configuração geral da plataforma Canal Dark.
+
+# Porta do painel: abra http://localhost:8001 no navegador.
+porta: 8001
+
+# Quantos vídeos de cada canal descem do Drive por vez para editar.
+pacote: 15
+
+# Onde ficam os vídeos captados e os vídeos finais.
+drive:
+  # "pasta" (o padrão) usa uma pasta do próprio computador: dados/drive/CanalDark.
+  # Serve para testar sem conta nenhuma.
+  #
+  # Para usar o Google Drive de verdade, troque para "rclone":
+  #   1. instale o rclone: brew install rclone
+  #   2. rode `rclone config` e crie um remote do tipo "drive" chamado gdrive,
+  #      usando o seu próprio client OAuth do Google Cloud (veja docs/contas.md);
+  #   3. troque a linha abaixo para `tipo: rclone` e reinicie a plataforma.
+  tipo: pasta
+  remote: "gdrive:"          # nome do remote do rclone, com os dois-pontos no fim
+  pasta: CanalDark           # pasta principal dentro do Drive (e dentro de pasta_local)
+  pasta_local: dados/drive   # usada só com tipo: pasta
+  manter_originais: false    # true guarda os originais usados em 4-originais-usados em vez de apagar
+  limite_uso: 0.9            # a captação pausa quando o Drive passa de 90% de uso
+
+# País da lista "Em alta agora" (Google Trends).
+tendencias_geo: BR

@@ -1,0 +1,5 @@
+# O vídeo inteiro no centro, sobre uma cópia ampliada e borrada; texto branco com contorno no topo.
+# Campos opcionais: cor_faixa, cor_texto, alinhamento (centro ou esquerda), fonte_min, fonte_max.
+rotulo: "Fundo borrado"
+tipo: borrado
+cor_texto: "#FFFFFF"

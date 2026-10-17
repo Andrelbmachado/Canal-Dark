@@ -10,16 +10,15 @@ requires-python = ">=3.11"
 dependencies = [
   "fastapi", "uvicorn[standard]", "aiosqlite", "pydantic>=2", "pyyaml", "feedparser",
   "httpx", "yt-dlp", "google-api-python-client", "google-auth-oauthlib",
-  "keyring", "mcp>=2,<3",
+  "keyring", "pillow",
 ]
 
 [project.optional-dependencies]
-ml = ["faster-whisper", "kokoro", "soundfile"]
+ml = ["faster-whisper"]
 dev = ["pytest", "pytest-asyncio", "respx"]
 
 [project.scripts]
 canaldark = "canaldark.cli:main"
-canaldark-mcp = "canaldark.chat.mcp_server:main"
 
 [tool.setuptools.packages.find]
 include = ["canaldark*"]
